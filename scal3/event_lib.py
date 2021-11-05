@@ -3746,6 +3746,8 @@ class EventContainer(BsonHistEventObj):
 		self.uuid = None
 		self.modified = now()
 		# self.eventsModified = self.modified
+		######
+		self.notif = False
 
 	def afterModify(self):
 		self.modified = now()
@@ -4438,8 +4440,16 @@ class EventGroup(EventContainer):
 		)
 		eid = event.id
 		self.occurCount -= self.occur.delete(eid)
-		for t0, t1 in event.calcOccurrenceAll().getTimeRangeList():
+
+		occur = event.calcOccurrenceAll()
+		if not occur:
+			return
+
+		for t0, t1 in occur.getTimeRangeList():
 			self.addOccur(t0, t1, eid)
+
+		if event.notifiers:
+			self.notif = True
 
 	def initOccurrence(self) -> None:
 		from scal3.event_search_tree import EventSearchTree
@@ -4452,6 +4462,7 @@ class EventGroup(EventContainer):
 	def clear(self) -> None:
 		self.occur.clear()
 		self.occurCount = 0
+		self.notif = True
 
 	def addOccur(self, t0: float, t1: float, eid: int) -> None:
 		self.occur.add(t0, t1, eid)
@@ -4466,9 +4477,15 @@ class EventGroup(EventContainer):
 	def updateOccurrence(self) -> None:
 		stm0 = now()
 		self.clear()
+
+		notif = False
 		for event, occur in self.calcOccurrenceAll():
 			for t0, t1 in occur.getTimeRangeList():
 				self.addOccur(t0, t1, event.id)
+			if event.notifiers:
+				notif = True
+		self.notif = notif
+
 		# self.occurLoaded = True
 		log.debug(f"time = {(now() - stm0) * 1000} ms")
 		# log.debug(
